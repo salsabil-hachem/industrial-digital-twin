@@ -1,0 +1,417 @@
+[
+  {
+    "id": "tab1",
+    "type": "tab",
+    "label": "Motor 1 - IIoT pipeline",
+    "disabled": false,
+    "info": "MQTT -> InfluxDB pipeline, alarm manager and operator commands for the motor digital twin."
+  },
+  {
+    "id": "broker1",
+    "type": "mqtt-broker",
+    "name": "Mosquitto",
+    "broker": "mosquitto",
+    "port": "1883",
+    "clientid": "nodered",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "autoUnsubscribe": true
+  },
+  {
+    "id": "c1",
+    "type": "comment",
+    "z": "tab1",
+    "x": 160,
+    "y": 40,
+    "name": "1) Data pipeline: MQTT -> InfluxDB",
+    "info": ""
+  },
+  {
+    "id": "in_tel",
+    "type": "mqtt in",
+    "z": "tab1",
+    "x": 170,
+    "y": 100,
+    "name": "Machine telemetry",
+    "topic": "factory/line1/motor1/telemetry",
+    "qos": "0",
+    "datatype": "json",
+    "broker": "broker1",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "wires": [
+      [
+        "fn_tel"
+      ]
+    ]
+  },
+  {
+    "id": "fn_tel",
+    "type": "function",
+    "z": "tab1",
+    "x": 420,
+    "y": 100,
+    "name": "telemetry -> line protocol",
+    "func": "// MQTT JSON -> InfluxDB line protocol\nconst m = msg.payload;\nconst num = [\"voltage\", \"current\", \"speed\", \"temperature\", \"vibration\", \"load_known\", \"wear\"]\n    .map(k => `${k}=${Number(m[k])}`).join(\",\");\nmsg.payload = `telemetry,line=line1,machine=motor1 ${num},tripped=${m.tripped}i,true_label=\"${m.label}\" ${m.ts}`;\nmsg.url = \"http://influxdb:8086/api/v2/write?org=\" + env.get(\"INFLUX_ORG\") + \"&bucket=\" + env.get(\"INFLUX_BUCKET\") + \"&precision=ms\";\nmsg.method = \"POST\";\nmsg.headers = { \"Authorization\": \"Token \" + env.get(\"INFLUX_TOKEN\"), \"Content-Type\": \"text/plain; charset=utf-8\" };\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "wires": [
+      [
+        "http"
+      ]
+    ]
+  },
+  {
+    "id": "in_twin",
+    "type": "mqtt in",
+    "z": "tab1",
+    "x": 170,
+    "y": 160,
+    "name": "Digital twin output",
+    "topic": "factory/line1/motor1/twin",
+    "qos": "0",
+    "datatype": "json",
+    "broker": "broker1",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "wires": [
+      [
+        "fn_twin",
+        "fn_alarm"
+      ]
+    ]
+  },
+  {
+    "id": "fn_twin",
+    "type": "function",
+    "z": "tab1",
+    "x": 420,
+    "y": 160,
+    "name": "twin -> line protocol",
+    "func": "// Twin outputs -> InfluxDB line protocol\nconst m = msg.payload;\nconst num = [\"current_pred\", \"temperature_pred\", \"r_current\", \"r_temp\", \"r_vib\", \"health\"]\n    .map(k => `${k}=${Number(m[k])}`).join(\",\");\nmsg.payload = `twin,line=line1,machine=motor1 ${num},diagnosis=\"${m.diagnosis}\" ${m.ts}`;\nmsg.url = \"http://influxdb:8086/api/v2/write?org=\" + env.get(\"INFLUX_ORG\") + \"&bucket=\" + env.get(\"INFLUX_BUCKET\") + \"&precision=ms\";\nmsg.method = \"POST\";\nmsg.headers = { \"Authorization\": \"Token \" + env.get(\"INFLUX_TOKEN\"), \"Content-Type\": \"text/plain; charset=utf-8\" };\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "wires": [
+      [
+        "http"
+      ]
+    ]
+  },
+  {
+    "id": "http",
+    "type": "http request",
+    "z": "tab1",
+    "x": 680,
+    "y": 130,
+    "name": "InfluxDB write",
+    "method": "use",
+    "ret": "txt",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": true,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "wires": [
+      [
+        "fn_err"
+      ]
+    ]
+  },
+  {
+    "id": "fn_err",
+    "type": "function",
+    "z": "tab1",
+    "x": 880,
+    "y": 130,
+    "name": "failed writes only",
+    "func": "// keep only failed writes (InfluxDB answers 204 on success)\nif (msg.statusCode >= 300 || msg.statusCode === undefined) { node.warn(msg.payload); return msg; }\nreturn null;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "wires": [
+      [
+        "dbg_err"
+      ]
+    ]
+  },
+  {
+    "id": "dbg_err",
+    "type": "debug",
+    "z": "tab1",
+    "x": 1070,
+    "y": 130,
+    "name": "InfluxDB errors",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "wires": []
+  },
+  {
+    "id": "c2",
+    "type": "comment",
+    "z": "tab1",
+    "x": 140,
+    "y": 240,
+    "name": "2) Alarm manager",
+    "info": ""
+  },
+  {
+    "id": "fn_alarm",
+    "type": "function",
+    "z": "tab1",
+    "x": 420,
+    "y": 280,
+    "name": "alarm manager",
+    "func": "// Raise / clear alarms when the twin diagnosis changes (with 1 s debounce)\nconst d = msg.payload.diagnosis;\nconst state = context.get(\"state\") || { active: \"normal\", candidate: \"normal\", since: 0 };\nconst now = msg.payload.ts;\nif (d !== state.candidate) { state.candidate = d; state.since = now; }\nlet out = null;\nif (state.candidate !== state.active && now - state.since >= 1000) {\n    const prev = state.active;\n    state.active = state.candidate;\n    const raised = state.active !== \"normal\";\n    const alarm = {\n        ts: now, machine: \"motor1\",\n        event: raised ? \"ALARM_RAISED\" : \"ALARM_CLEARED\",\n        diagnosis: state.active, previous: prev,\n        health: msg.payload.health\n    };\n    node.status({ fill: raised ? \"red\" : \"green\", shape: \"dot\", text: state.active });\n    out = [\n        { topic: \"factory/line1/motor1/alarm\", payload: alarm },\n        { payload: `alarms,machine=motor1 event=\"${alarm.event}\",diagnosis=\"${alarm.diagnosis}\",health=${alarm.health} ${now}` }\n    ];\n}\ncontext.set(\"state\", state);\nif (!out) return null;\nout[1].url = \"http://influxdb:8086/api/v2/write?org=\" + env.get(\"INFLUX_ORG\") + \"&bucket=\" + env.get(\"INFLUX_BUCKET\") + \"&precision=ms\";\nout[1].method = \"POST\";\nout[1].headers = { \"Authorization\": \"Token \" + env.get(\"INFLUX_TOKEN\"), \"Content-Type\": \"text/plain; charset=utf-8\" };\n\nreturn out;",
+    "outputs": 2,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "wires": [
+      [
+        "mq_alarm",
+        "dbg_alarm"
+      ],
+      [
+        "http"
+      ]
+    ]
+  },
+  {
+    "id": "mq_alarm",
+    "type": "mqtt out",
+    "z": "tab1",
+    "x": 690,
+    "y": 260,
+    "name": "Publish alarm",
+    "topic": "",
+    "qos": "1",
+    "retain": "true",
+    "broker": "broker1",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "wires": []
+  },
+  {
+    "id": "dbg_alarm",
+    "type": "debug",
+    "z": "tab1",
+    "x": 680,
+    "y": 300,
+    "name": "Alarms",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "wires": []
+  },
+  {
+    "id": "c3",
+    "type": "comment",
+    "z": "tab1",
+    "x": 170,
+    "y": 380,
+    "name": "3) Operator commands (click the buttons)",
+    "info": ""
+  },
+  {
+    "id": "mq_cmd",
+    "type": "mqtt out",
+    "z": "tab1",
+    "x": 500,
+    "y": 520,
+    "name": "Machine command",
+    "topic": "factory/line1/motor1/cmd",
+    "qos": "1",
+    "retain": "false",
+    "broker": "broker1",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "wires": []
+  },
+  {
+    "id": "inj0",
+    "type": "inject",
+    "z": "tab1",
+    "x": 170,
+    "y": 420,
+    "name": "Overload ON",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"fault\":\"overload\",\"active\":true}",
+    "payloadType": "json",
+    "wires": [
+      [
+        "mq_cmd"
+      ]
+    ]
+  },
+  {
+    "id": "inj1",
+    "type": "inject",
+    "z": "tab1",
+    "x": 170,
+    "y": 460,
+    "name": "Overload OFF",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"fault\":\"overload\",\"active\":false}",
+    "payloadType": "json",
+    "wires": [
+      [
+        "mq_cmd"
+      ]
+    ]
+  },
+  {
+    "id": "inj2",
+    "type": "inject",
+    "z": "tab1",
+    "x": 170,
+    "y": 500,
+    "name": "Bearing wear ON",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"fault\":\"bearing_wear\",\"active\":true}",
+    "payloadType": "json",
+    "wires": [
+      [
+        "mq_cmd"
+      ]
+    ]
+  },
+  {
+    "id": "inj3",
+    "type": "inject",
+    "z": "tab1",
+    "x": 170,
+    "y": 540,
+    "name": "Cooling failure ON",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"fault\":\"cooling_failure\",\"active\":true}",
+    "payloadType": "json",
+    "wires": [
+      [
+        "mq_cmd"
+      ]
+    ]
+  },
+  {
+    "id": "inj4",
+    "type": "inject",
+    "z": "tab1",
+    "x": 170,
+    "y": 580,
+    "name": "Cooling failure OFF",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"fault\":\"cooling_failure\",\"active\":false}",
+    "payloadType": "json",
+    "wires": [
+      [
+        "mq_cmd"
+      ]
+    ]
+  },
+  {
+    "id": "inj5",
+    "type": "inject",
+    "z": "tab1",
+    "x": 170,
+    "y": 620,
+    "name": "Reset machine",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"reset\":true}",
+    "payloadType": "json",
+    "wires": [
+      [
+        "mq_cmd"
+      ]
+    ]
+  }
+]

@@ -1,0 +1,62 @@
+services:
+  mosquitto:            # MQTT broker
+    image: eclipse-mosquitto:2
+    ports: ["1883:1883"]
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  influxdb:             # time-series database
+    image: influxdb:2.7
+    ports: ["8086:8086"]
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_USER}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET}
+      DOCKER_INFLUXDB_INIT_RETENTION: 7d
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+    volumes:
+      - influx-data:/var/lib/influxdb2
+
+  nodered:              # data flows: MQTT -> InfluxDB, alarms, operator commands
+    image: nodered/node-red:4.0
+    ports: ["1880:1880"]
+    environment:
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_BUCKET: ${INFLUX_BUCKET}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+    volumes:
+      - ./nodered:/data
+    depends_on: [mosquitto, influxdb]
+
+  grafana:              # dashboards
+    image: grafana/grafana:11.3.0
+    ports: ["3000:3000"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_BUCKET: ${INFLUX_BUCKET}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on: [influxdb]
+
+  simulator:            # the virtual machine (physics plant)
+    build: ./simulator
+    command: python sim_publisher.py
+    environment:
+      MQTT_HOST: mosquitto
+      SIM_SPEEDUP: "1"
+    depends_on: [mosquitto]
+
+  twin:                 # the digital twin microservice
+    build: ./simulator
+    command: python twin_service.py
+    environment:
+      MQTT_HOST: mosquitto
+    depends_on: [mosquitto]
+
+volumes:
+  influx-data:

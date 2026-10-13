@@ -1,0 +1,16 @@
+# Secrets - never publish
+.env
+
+# Node-RED runtime files (generated automatically)
+nodered/*
+!nodered/flows.json
+
+# Python
+__pycache__/
+*.pyc
+
+# Windows / editor
+Thumbs.db
+.vscode/
+# AI assistant settings
+.qodo/
