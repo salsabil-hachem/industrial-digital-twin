@@ -1,7 +1,9 @@
-# Industrial Digital Twin: IIoT stack (MQTT · Node-RED · InfluxDB · Grafana)
+﻿# Industrial Digital Twin: IIoT stack (MQTT · Node-RED · InfluxDB · Grafana)
 
 Real-time digital twin of a conveyor drive, built on the standard Industry 4.0 stack.
 No hardware needed: a physics simulator plays the machine.
+
+![Grafana dashboard: live digital twin of the motor](docs/dashboard.png)
 
 ## Architecture
 ```
@@ -56,3 +58,17 @@ Stop: `docker compose down` (add `-v` to delete stored data).
 - [ ] ML anomaly detection service (Isolation Forest) reading InfluxDB
 - [ ] OPC UA server for the simulator (node-red-contrib-opcua)
 - [ ] Several machines (motor2, motor3) + OEE dashboard
+
+## Screenshots
+| Node-RED flow | Docker containers |
+|---|---|
+| ![Node-RED](docs/node-red.png) | ![Docker](docs/docker.png) |
+
+## Skills demonstrated
+Physics-based modelling (DC motor, PI control, thermal model) - digital twin and residual-based fault diagnosis - IIoT architecture (MQTT, ISA-95 topics) - Node-RED - InfluxDB / Flux - Grafana - Docker Compose - Python
+
+## Author
+Salsabil Hachem - Mechatronics Engineer (ENISo, Tunisia)
+
+## License
+MIT
